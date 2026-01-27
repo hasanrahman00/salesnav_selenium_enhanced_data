@@ -62,6 +62,19 @@ const ensureExtensionLogin = async (driver, cookies, name) => {
     }
     return;
   }
+  if (name === "SignalHire") {
+    const check = await confirmLoginInNewTab({
+      driver,
+      name: "SignalHire",
+      baseUrl: "https://www.signalhire.com",
+      confirmUrl: "https://www.signalhire.com/candidates/3c4f94c0b61d4f999d1bf0b6093f3fcb",
+      cookies: cookies.signalhire,
+    });
+    if (!check.ok) {
+      throw new Error(`SignalHire cookie expired. ${check.message}`);
+    }
+    return;
+  }
   const check = await confirmLoginInNewTab({
     driver,
     name: "ContactOut",
@@ -128,6 +141,7 @@ const startScraper = async (job) => {
     }
     await ensureExtensionLogin(driver, cookies, "Lusha");
     await ensureExtensionLogin(driver, cookies, "ContactOut");
+    await ensureExtensionLogin(driver, cookies, "SignalHire");
     if (job?.listUrl) {
       await driver.get(job.listUrl);
       await waitForSalesNavReady(driver).catch(() => null);
