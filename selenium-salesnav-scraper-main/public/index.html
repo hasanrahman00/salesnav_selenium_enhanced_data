@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sales Nav Scraper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div>
+          <h1>Sales Nav Scraper</h1>
+          <p>Run scraping jobs and download results</p>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>LinkedIn Session</h2>
+          <p>
+            Paste your LinkedIn cookies in JSON format. Stored locally and used
+            to authenticate.
+          </p>
+        </div>
+        <div class="field-group">
+          <label for="cookiesInput">LinkedIn JSON Cookies</label>
+          <textarea
+            id="cookiesInput"
+            placeholder="[{ 'name': 'li_at', 'value': '...' }]"
+          ></textarea>
+          <span class="helper"
+            >Example: [{ 'name': 'li_at', 'value': '...' }]</span
+          >
+          <span class="error" id="cookiesError"></span>
+        </div>
+        <div class="actions right">
+          <button class="btn secondary" id="cookiesValidate">Validate</button>
+          <button class="btn primary" id="cookiesSave">Save</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Create Job</h2>
+        </div>
+        <div class="grid-2">
+          <div class="field-group">
+            <label for="listName">List Name<span>*</span></label>
+            <input
+              id="listName"
+              type="text"
+              placeholder="e.g., CEOs in FinTech — US"
+              required
+            />
+            <span class="error" id="listNameError"></span>
+          </div>
+          <div class="field-group">
+            <label for="listUrl">LinkedIn URL<span>*</span></label>
+            <input
+              id="listUrl"
+              type="url"
+              placeholder="https://www.linkedin.com/sales/…"
+              required
+            />
+            <span class="hint"
+              >Paste a Sales Navigator lead/company list URL</span
+            >
+            <span class="error" id="listUrlError"></span>
+          </div>
+        </div>
+
+        <div class="upload-section">
+          <div class="section-header">
+            <h3>Upload Area</h3>
+          </div>
+          <label class="upload-area" id="uploadArea">
+            <input id="bulkCsvInput" type="file" accept=".csv" hidden />
+            <div class="upload-icon">📊</div>
+            <div class="upload-title">Drop your file here or click to browse</div>
+            <div class="upload-tags">
+              <span>CSV</span>
+            </div>
+            <div class="upload-meta">
+              File type: CSV only<br />
+              Columns required: url_number, url
+            </div>
+            <a class="upload-link" href="/api/jobs/bulk-template">Download sample template</a>
+          </label>
+          <div class="upload-file" id="bulkFileName">No file selected</div>
+          <span class="error" id="bulkCsvError"></span>
+        </div>
+        <div class="actions">
+          <button class="btn primary large" id="runScraper">
+            <span class="btn-text">Run Scraper</span>
+            <span class="spinner" hidden></span>
+          </button>
+        </div>
+
+        <div class="table-header">
+          <div>
+            <h3>Jobs</h3>
+            <p>Manage running and completed scraping jobs</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Job Name</th>
+                <th class="right">Total Data</th>
+                <th>URL #</th>
+                <th>Page #</th>
+                <th>Total (s)</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="jobsBody">
+              <tr class="empty-row">
+                <td colspan="7">
+                  <div class="empty-state">
+                    <span>🗂️</span>
+                    <p>No jobs yet. Create one above.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast">Cookies saved</div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
