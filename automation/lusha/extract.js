@@ -1,4 +1,5 @@
 const { By, until, waitForAnyVisible, waitForSalesNavReady } = require("../utils/dom");
+const { cleanName } = require("../../utils/nameCleaner");
 const { clickLushaBadge } = require("./actions");
 const { clickLushaPrivacyApproval } = require("./privacyApproval");
 
@@ -138,7 +139,8 @@ const extractLushaContacts = async (
 
     const tMap = Date.now();
     const mapped = raw.map((record) => {
-      const { firstName, lastName } = splitName(record.fullName);
+      const cleanedFullName = cleanName(record.fullName || "");
+      const { firstName, lastName } = splitName(cleanedFullName);
       const domains = [];
       for (const text of record.domains || []) {
         const extracted = extractDomains(text);
@@ -149,7 +151,7 @@ const extractLushaContacts = async (
         }
       }
       return {
-        fullName: record.fullName,
+        fullName: cleanedFullName,
         firstName,
         lastName,
         companyName: record.companyName,

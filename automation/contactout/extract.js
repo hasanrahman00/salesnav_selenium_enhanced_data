@@ -1,5 +1,21 @@
 const freeEmailDomains = require("free-email-domains");
 const { By, waitForAnyVisible } = require("../utils/dom");
+const { cleanName } = require("../../utils/nameCleaner");
+
+const splitName = (fullName) => {
+  const cleaned = String(fullName || "").trim();
+  if (!cleaned) {
+    return { firstName: "", lastName: "" };
+  }
+  const parts = cleaned.split(/\s+/);
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+};
 
 const withFrame = async (driver, frameEl, fn) => {
   await driver.switchTo().frame(frameEl);
@@ -98,8 +114,12 @@ const extractContactoutData = async (
           }
         }
       }
+      const cleanedFullName = cleanName(record.fullName || "");
+      const { firstName, lastName } = splitName(cleanedFullName);
       return {
-        fullName: record.fullName,
+        fullName: cleanedFullName,
+        firstName,
+        lastName,
         title,
         companyName,
         domains: domains.slice(0, 2),

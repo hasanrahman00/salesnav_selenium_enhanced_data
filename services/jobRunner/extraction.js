@@ -16,38 +16,68 @@ const {
 } = require("./auth");
 const { toCsvRow } = require("./csv");
 
-const mergeContactoutData = (records, contactoutRecords) => {
+const normalizeKey = (value) => String(value || "").trim().toLowerCase();
+
+const mergeLushaDomains = (records, lushaRecords) => {
+  if (!Array.isArray(records) || !Array.isArray(lushaRecords)) {
+    return records;
+  }
+  for (const lusha of lushaRecords) {
+    const lushaFirst = normalizeKey(lusha.firstName || "");
+    const lushaCompany = normalizeKey(lusha.companyName || "");
+    const lushaDomains = Array.isArray(lusha.domains) ? lusha.domains : [];
+    if (!lushaDomains.length) {
+      continue;
+    }
+    for (const record of records) {
+      if (!record) {
+        continue;
+      }
+      const recordFirst = normalizeKey(record.firstName || "");
+      const recordCompany = normalizeKey(record.companyName || "");
+      const firstMatch = lushaFirst && recordFirst && lushaFirst === recordFirst;
+      const companyMatch = lushaCompany && recordCompany && lushaCompany === recordCompany;
+      if (!firstMatch && !companyMatch) {
+        continue;
+      }
+      if (!record.domains || record.domains.length === 0) {
+        record.domains = lushaDomains.slice(0, 2);
+        record.website = record.domains.join(";");
+      }
+    }
+  }
+  return records;
+};
+
+const mergeContactoutDomains = (records, contactoutRecords) => {
   if (!Array.isArray(records) || !Array.isArray(contactoutRecords)) {
     return records;
   }
 
   for (const contactout of contactoutRecords) {
-    const coFirstName = String(contactout.fullName || "").split(/\s+/)[0]?.toLowerCase();
+    const coFirstName = normalizeKey(contactout.firstName || "");
+    const coCompany = normalizeKey(contactout.companyName || "");
     const coDomains = Array.isArray(contactout.domains) ? contactout.domains : [];
+    if (!coDomains.length) {
+      continue;
+    }
 
     for (const record of records) {
       if (!record) {
         continue;
       }
-      const firstNameMatch =
-        coFirstName && record.firstName && record.firstName.toLowerCase() === coFirstName;
-      const companyMatch =
-        contactout.companyName &&
-        record.companyName &&
-        record.companyName.toLowerCase() === contactout.companyName.toLowerCase();
-
-      if (firstNameMatch || companyMatch) {
-        if (!record.title && contactout.title) {
-          record.title = contactout.title;
-        }
-        if (!record.companyName && contactout.companyName) {
-          record.companyName = contactout.companyName;
-        }
-        if ((!record.domains || record.domains.length === 0) && coDomains.length) {
-          record.domains = [...coDomains];
-          record.website = coDomains.join(";");
-        }
+      if (record.domains && record.domains.length) {
+        continue;
       }
+      const recordFirst = normalizeKey(record.firstName || "");
+      const recordCompany = normalizeKey(record.companyName || "");
+      const firstNameMatch = coFirstName && recordFirst && coFirstName === recordFirst;
+      const companyMatch = coCompany && recordCompany && coCompany === recordCompany;
+      if (!firstNameMatch && !companyMatch) {
+        continue;
+      }
+      record.domains = coDomains.slice(0, 2);
+      record.website = record.domains.join(";");
     }
   }
   return records;
@@ -163,6 +193,17 @@ const runPageExtraction = async ({
     timings.preExtractMs = Date.now() - tPre;
   }
 
+  let signalhireData = [];
+  if (driver) {
+    const signalhireStart = Date.now();
+    signalhireData = await extractSignalhireProfiles(driver, {
+      timeoutMs: Number(process.env.SIGNALHIRE_TIMEOUT_MS || 15000),
+      debug: true,
+      maxCards: Number(process.env.SIGNALHIRE_MAX_CARDS || 50),
+    }).catch(() => []);
+    timings.signalhireExtractMs = Date.now() - signalhireStart;
+  }
+
   if (driver) {
     try {
       await clickLushaBadge(driver, Number(process.env.LUSHA_BADGE_TIMEOUT_MS || 8000));
@@ -171,12 +212,15 @@ const runPageExtraction = async ({
     }
   }
   const lushaStart = Date.now();
-  const records = driver
+  const lushaRecords = driver
     ? await extractLushaContacts(driver, { maxCards: 25, debug: true, retryOnTimeout: true })
     : [];
   timings.lushaExtractMs = Date.now() - lushaStart;
   const lushaSeconds = (timings.lushaExtractMs / 1000).toFixed(2);
   updateJob(job.id, { lushaSeconds: Number(lushaSeconds) });
+
+  const records = Array.isArray(signalhireData) ? [...signalhireData] : [];
+  mergeLushaDomains(records, lushaRecords);
 
   let contactoutSeconds = 0;
   try {
@@ -256,16 +300,7 @@ const runPageExtraction = async ({
       }).catch(() => []);
       timings.contactoutExtractMs = Date.now() - contactoutStart;
       contactoutSeconds = Number((timings.contactoutExtractMs / 1000).toFixed(2));
-      mergeContactoutData(records, contactoutData);
-
-      const signalhireStart = Date.now();
-      const signalhireData = await extractSignalhireProfiles(driver, {
-        timeoutMs: Number(process.env.SIGNALHIRE_TIMEOUT_MS || 15000),
-        debug: true,
-        maxCards: Number(process.env.SIGNALHIRE_MAX_CARDS || 50),
-      }).catch(() => []);
-      timings.signalhireExtractMs = Date.now() - signalhireStart;
-      mergeSignalhireData(records, signalhireData);
+      mergeContactoutDomains(records, contactoutData);
 
       await humanScrollSalesDashboard(driver, {
         minSteps: Number(process.env.HUMAN_SCROLL_MIN_STEPS || 7),

@@ -2,7 +2,7 @@ const path = require("path");
 const { dataDir } = require("../../config/paths");
 
 const csvHeader =
-  "Url Number,Page Number,Full Name,First Name,Last Name,Company Name,Title,Website,Website_one,Signalhire profile url,LinkedIn Url,Person Location";
+  "Url Number,Page Number,Profile Url,Full Name,First Name,Last Name,Title,Company Name,Person Location,Person Linkedin,Website,Website_one";
 
 const normalizeName = (name) => {
   return String(name || "")
@@ -30,16 +30,16 @@ const toCsvRow = (record) => {
   return [
     escapeCsvValue(record.urlNumber ?? ""),
     escapeCsvValue(record.pageNumber ?? ""),
+    escapeCsvValue(record.signalhireProfileUrl || ""),
     escapeCsvValue(record.fullName),
     escapeCsvValue(record.firstName),
     escapeCsvValue(record.lastName),
-    escapeCsvValue(record.companyName),
     escapeCsvValue(record.title || ""),
+    escapeCsvValue(record.companyName),
+    escapeCsvValue(record.location || ""),
+    escapeCsvValue(record.linkedinUrl || ""),
     escapeCsvValue(domains[0] || ""),
     escapeCsvValue(domains[1] || ""),
-    escapeCsvValue(record.signalhireProfileUrl || ""),
-    escapeCsvValue(record.linkedinUrl || ""),
-    escapeCsvValue(record.location || ""),
   ].join(",");
 };
 

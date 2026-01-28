@@ -48,6 +48,7 @@ const ensureLinkedInLogin = async (driver, cookies) => {
   }
 };
 
+
 const ensureExtensionLogin = async (driver, cookies, name) => {
   if (name === "Lusha") {
     const check = await confirmLoginInNewTab({
@@ -87,6 +88,57 @@ const ensureExtensionLogin = async (driver, cookies, name) => {
   }
 };
 
+const ensureExtensionsLoginInTabs = async (driver, cookies) => {
+  const original = await driver.getWindowHandle();
+  const tabs = [
+    { name: "Lusha", baseUrl: "https://dashboard.lusha.com", confirmUrl: "https://dashboard.lusha.com/dashboard", cookies: cookies.lusha },
+    { name: "ContactOut", baseUrl: "https://contactout.com", confirmUrl: "https://contactout.com/lists", cookies: cookies.contactout },
+    { name: "SignalHire", baseUrl: "https://www.signalhire.com", confirmUrl: "https://www.signalhire.com/candidates/3c4f94c0b61d4f999d1bf0b6093f3fcb", cookies: cookies.signalhire },
+  ];
+  const handles = [];
+  try {
+    for (let i = 0; i < tabs.length; i += 1) {
+      await driver.switchTo().newWindow("tab");
+      const handle = await driver.getWindowHandle();
+      if (handle) {
+        handles.push(handle);
+      }
+    }
+    for (let i = 0; i < tabs.length; i += 1) {
+      const tab = tabs[i];
+      const handle = handles[i];
+      if (!handle) {
+        throw new Error(`Failed to open ${tab.name} tab for auth check.`);
+      }
+      await driver.switchTo().window(handle);
+      const check = await confirmLogin({
+        driver,
+        name: tab.name,
+        baseUrl: tab.baseUrl,
+        confirmUrl: tab.confirmUrl,
+        cookies: tab.cookies,
+      });
+      if (!check.ok) {
+        throw new Error(`${tab.name} cookie expired. ${check.message}`);
+      }
+    }
+  } finally {
+    for (const handle of handles) {
+      try {
+        await driver.switchTo().window(handle);
+        await driver.close();
+      } catch (error) {
+        // ignore
+      }
+    }
+    try {
+      await driver.switchTo().window(original);
+    } catch (error) {
+      // ignore
+    }
+  }
+};
+
 const isSalesLoginPage = (url, title) => {
   const normalized = String(url || "").toLowerCase();
   if (normalized.includes("/sales/login")) {
@@ -97,6 +149,13 @@ const isSalesLoginPage = (url, title) => {
 
 const startScraper = async (job) => {
   const driver = await launchBrowser();
+  const safeQuit = async () => {
+    try {
+      await driver.quit();
+    } catch (error) {
+      // ignore invalid session errors
+    }
+  };
   try {
     await driver.manage().window().maximize();
   } catch (error) {
@@ -109,15 +168,19 @@ const startScraper = async (job) => {
   await closeExtraTabs(driver);
   const cookies = loadCookies();
   try {
-    let attemptedLinkedInAuth = false;
     if (job?.listUrl) {
       await driver.get(job.listUrl);
       const currentUrl = await driver.getCurrentUrl();
       const title = await driver.getTitle().catch(() => "");
       if (isSalesLoginPage(currentUrl, title)) {
         await ensureLinkedInLogin(driver, cookies);
-        attemptedLinkedInAuth = true;
         await driver.get(job.listUrl);
+        const retryUrl = await driver.getCurrentUrl();
+        const retryTitle = await driver.getTitle().catch(() => "");
+        if (isSalesLoginPage(retryUrl, retryTitle)) {
+          await safeQuit();
+          throw new Error("LinkedIn cookie expired. Redirected to sales login.");
+        }
       }
     }
 
@@ -136,13 +199,8 @@ const startScraper = async (job) => {
       return { driver, cookies, job };
     }
 
-    if (!attemptedLinkedInAuth) {
-      await ensureLinkedInLogin(driver, cookies);
-    }
-    await ensureExtensionLogin(driver, cookies, "Lusha");
-    await ensureExtensionLogin(driver, cookies, "ContactOut");
-    await ensureExtensionLogin(driver, cookies, "SignalHire");
     if (job?.listUrl) {
+      await ensureExtensionsLoginInTabs(driver, cookies);
       await driver.get(job.listUrl);
       await waitForSalesNavReady(driver).catch(() => null);
     }
@@ -151,7 +209,7 @@ const startScraper = async (job) => {
       job.authChecked = true;
     }
   } catch (error) {
-    await driver.quit();
+    await safeQuit();
     throw error;
   }
   return { driver, cookies, job };
