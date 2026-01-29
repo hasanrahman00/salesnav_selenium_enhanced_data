@@ -28,10 +28,14 @@ const extractSignalhireProfiles = async (
     console.log(`[signalhire] start (timeout=${timeoutMs}ms, maxCards=${maxCards})`);
   }
   await waitForSalesNavReady(driver, timeoutMs).catch(() => null);
+
+  // Updated injection detection: accept the new floating-button layout
   try {
     const source = await driver.getPageSource();
-    const injected =
-      source.includes("signalhire.com") && source.includes("floating-button-wrapper");
+    const hasWrapper = source.includes("floating-button-wrapper");
+    const hasFloatingButton = source.includes("floating-button");
+    const hasSignalhireDomain = source.includes("signalhire.com");
+    const injected = hasWrapper || (hasFloatingButton && hasSignalhireDomain);
     if (!injected) {
       throw new Error("SignalHire extension not injected on this page.");
     }
@@ -41,19 +45,19 @@ const extractSignalhireProfiles = async (
     }
     throw new Error("SignalHire extension not injected on this page.");
   }
+
   await clickSignalhireBadge(driver, { timeoutMs }).catch(() => null);
   await clickSignalhireGetProfiles(driver, { timeoutMs });
   await waitForSignalhireCards(driver, timeoutMs);
 
+  // Extract cards
   const raw = await driver.executeScript(`
     const anchors = Array.from(document.querySelectorAll("a[href*='signalhire.com/search/people/']"));
     const results = [];
     const seen = new Set();
     for (const anchor of anchors) {
       const profileUrl = anchor.getAttribute('href') || '';
-      if (!profileUrl || seen.has(profileUrl)) {
-        continue;
-      }
+      if (!profileUrl || seen.has(profileUrl)) continue;
       seen.add(profileUrl);
       const card = anchor.closest('div') || anchor.parentElement;
       const fullName = (anchor.textContent || '').trim();
@@ -69,9 +73,7 @@ const extractSignalhireProfiles = async (
         location: locationEl ? locationEl.textContent.trim() : "",
         linkedinUrl: linkedinEl ? linkedinEl.getAttribute('href') : "",
       });
-      if (results.length >= ${Number.isFinite(maxCards) ? maxCards : 50}) {
-        break;
-      }
+      if (results.length >= ${Number.isFinite(maxCards) ? maxCards : 50}) break;
     }
     return results;
   `);

@@ -1,13 +1,13 @@
 [
   {
-    "id": "b5162e8b-ec1e-4a28-a08d-a4d78178bf29",
-    "name": "dsf #b5162e8b",
-    "listName": "dsf",
+    "id": "0434cb28-54e1-4391-9a1c-f1e1cf7b2563",
+    "name": "fdssd #0434cb28",
+    "listName": "fdssd",
     "listUrl": "https://www.linkedin.com/sales/search/people?query=(recentSearchParam%3A(doLogHistory%3Atrue)%2Cfilters%3AList((type%3ACOMPANY_HEADCOUNT%2Cvalues%3AList((id%3AA%2Ctext%3ASelf-employed%2CselectionType%3AINCLUDED)))))&sessionId=M0jzi3hjQ5aADSvbV9jERw%3D%3D&viewAllFilters=true",
     "status": "Failed",
     "total": 0,
-    "filePath": "C:\\Users\\Hassan\\OneDrive\\Documents\\salesnav_selenium_enhanced_data\\data\\dsf-1769664441567.csv",
-    "startedAt": "2026-01-29T05:27:21.568Z",
+    "filePath": "C:\\Users\\Hassan\\OneDrive\\Documents\\salesnav_selenium_enhanced_data\\data\\fdssd-1769665285447.csv",
+    "startedAt": "2026-01-29T05:41:25.448Z",
     "error": "SignalHire extension not injected on this page."
   }
 ]
