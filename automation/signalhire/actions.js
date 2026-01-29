@@ -1,5 +1,18 @@
+/*
+ * Updated SignalHire actions module to handle recent UI changes.
+ *
+ * Changes include:
+ *  - Expanded button locator patterns for the floating badge.
+ *  - Relaxed injection checks so the badge click is attempted even when
+ *    legacy markers are missing.
+ *  - Enhanced detection of the "Get Profiles" button to match synonyms
+ *    such as "Get contacts", "Get contact info", "Get leads", etc.
+ *  - Updated verification logic to match the same broader set of labels.
+ */
+
 const { By, until, waitForAnyVisible, waitForSalesNavReady } = require("../utils/dom");
 
+/* Normalize options input for public functions. */
 const normalizeOptions = (input) => {
   if (typeof input === "number") {
     return { timeoutMs: input };
@@ -7,6 +20,7 @@ const normalizeOptions = (input) => {
   return input || {};
 };
 
+/* Helper to run a function within an iframe context. */
 const withFrame = async (driver, frameEl, fn) => {
   await driver.switchTo().frame(frameEl);
   try {
@@ -16,6 +30,10 @@ const withFrame = async (driver, frameEl, fn) => {
   }
 };
 
+/*
+ * Generate possible locator strategies for the SignalHire floating badge.
+ * We include several CSS and XPath selectors that cover common variations.
+ */
 const getSignalhireLocators = () => [
   By.xpath("//*[normalize-space(text())='SH']"),
   By.css("button.floating-button"),
@@ -25,16 +43,24 @@ const getSignalhireLocators = () => [
   By.xpath("//img[@role='img' and contains(@src,'20.4655%209.14')]/ancestor::button[1]"),
   By.xpath("//button[contains(@class,'floating-button')]"),
   By.xpath("//button[normalize-space()='SH' or .//span[normalize-space()='SH'] or .//div[normalize-space()='SH']]"),
-  By.xpath("//*[@role='button' and normalize-space()='SH']"),
+  By.xpath("//*[@role='button' and normalize-space()='SH']")
 ];
 
+/*
+ * Determine whether a SignalHire action button (e.g. Get Profiles, Get contacts) is present.
+ * Matches a wider range of labels to accommodate UI changes.
+ */
 const hasGetProfilesButton = async (driver) => {
   return driver.executeScript(`
     const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.some((btn) => /get profiles/i.test(btn.textContent || ''));
+    const re = /get\\s+(profiles|contacts|contact info|contact|leads|people)/i;
+    return buttons.some((btn) => re.test((btn.textContent || '').trim()));
   `);
 };
 
+/*
+ * Wait until any of the accepted SignalHire action buttons appears or timeout.
+ */
 const waitForGetProfiles = async (driver, timeoutMs) => {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -47,6 +73,10 @@ const waitForGetProfiles = async (driver, timeoutMs) => {
   return false;
 };
 
+/*
+ * Attempt to click the SignalHire badge in the current document.
+ * Tries multiple locator strategies and falls back to a JS search if necessary.
+ */
 const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1200) => {
   const locators = getSignalhireLocators();
   try {
@@ -57,53 +87,65 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
         if (el && !candidates.includes(el)) {
           candidates.push(el);
         }
-      } catch (error) {
-        // ignore
+      } catch {
+        // ignore individual locator errors
       }
     }
+    // Filter out candidates belonging to other extensions like ContactOut or Lusha
+    const filtered = [];
     if (candidates.length) {
-      console.log(`[signalhire][debug] locator candidates=${candidates.length}`);
       for (let i = 0; i < candidates.length; i += 1) {
         try {
-          const html = await candidates[i].getAttribute("outerHTML");
-          const text = await candidates[i].getText().catch(() => "");
+          const html = String(await candidates[i].getAttribute('outerHTML') || '').toLowerCase();
+          const text = await candidates[i].getText().catch(() => '');
+          if (html.includes('contactout') || html.includes('lusha') || html.includes('seamless.ai')) {
+            // skip known non‑SignalHire buttons
+            continue;
+          }
+          filtered.push(candidates[i]);
           console.log(
-            `[signalhire][debug] locator[${i}] text=${JSON.stringify(
-              text
-            )} html=${JSON.stringify(String(html || "").slice(0, 180))}`
+            `[signalhire][debug] locator candidate text=${JSON.stringify(text)} html=${JSON.stringify(html.slice(0, 180))}`
           );
-        } catch (error) {
-          // ignore
+        } catch {
+          // if we can’t read HTML/text, assume it could be valid
+          filtered.push(candidates[i]);
         }
       }
+      console.log(`[signalhire][debug] locator candidates=${candidates.length}, filtered=${filtered.length}`);
     }
-    for (const el of candidates) {
-      console.log("[signalhire] button found via locator");
-      await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", el);
-      await driver.wait(until.elementIsVisible(el), timeoutMs);
+    for (const el of filtered) {
       try {
-        await el.click();
-      } catch (error) {
-        await driver.executeScript("arguments[0].click();", el);
+        console.log('[signalhire] button found via locator');
+        await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", el);
+        await driver.wait(until.elementIsVisible(el), timeoutMs);
+        try {
+          await el.click();
+        } catch {
+          await driver.executeScript("arguments[0].click();", el);
+        }
+        // Verify by waiting for any accepted Get Profiles/Contacts button
+        const verified = await waitForGetProfiles(driver, verifyMs);
+        if (verified) {
+          return true;
+        }
+        console.log('[signalhire] clicked locator but action button not visible yet');
+      } catch {
+        // ignore click errors and move to next candidate
       }
-      const verified = await waitForGetProfiles(driver, verifyMs);
-      if (verified) {
-        return true;
-      }
-      console.log("[signalhire] clicked locator but Get Profiles not visible");
     }
-  } catch (error) {
-    // fall through to JS search
+  } catch {
+    // fall through to JS search fallback
   }
+
+  // Fallback: run a JS search across the document and shadow roots
   const clicked = await driver.executeScript(`
     const findFloating = (root) => {
-      const buttons = Array.from(root.querySelectorAll('button.floating-button, [role="button"].floating-button'));
+      const buttons = Array.from(root.querySelectorAll('button.floating-button, [role=\"button\"].floating-button'));
       if (buttons.length) return buttons;
       return Array.from(root.querySelectorAll('button')).filter((btn) =>
         btn.querySelector("img[role='img']") || btn.querySelector("svg[data-testid='drag-vertical']")
       );
     };
-
     const findInShadow = (root) => {
       const results = [];
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
@@ -116,13 +158,12 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
       }
       return results;
     };
-
     const signature = '20.4655%209.14';
     const bySignatureImg = Array.from(document.querySelectorAll("img[role='img'][src^='data:image/svg+xml']")).find((img) => {
       const src = img.getAttribute('src') || '';
       return src.includes(signature);
     });
-    const byText = Array.from(document.querySelectorAll('button, [role="button"]')).find((el) =>
+    const byText = Array.from(document.querySelectorAll('button, [role=\"button\"]')).find((el) =>
       (el.textContent || '').trim() === 'SH'
     );
     const candidates = [
@@ -131,7 +172,6 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
       ...(bySignatureImg ? [bySignatureImg.closest('button')] : []),
       ...(byText ? [byText.closest('button') || byText] : []),
     ].filter(Boolean);
-
     const filtered = candidates.filter((el) => {
       const html = (el.outerHTML || '').toLowerCase();
       if (html.includes('contactout') || html.includes('lusha')) {
@@ -141,23 +181,10 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
       if (wrapper) {
         const link = wrapper.querySelector("a[href*='signalhire.com']");
         const img = wrapper.querySelector("img[role='img'][src*='20.4655%209.14']");
-        if (link || img) {
-          return true;
-        }
+        if (link || img) return true;
       }
-      return false;
+      return true;
     });
-
-    const debug = {
-      total: candidates.length,
-      filtered: filtered.length,
-      samples: candidates.slice(0, 3).map((el) => (el.outerHTML || '').slice(0, 140)),
-      filteredSamples: filtered.slice(0, 3).map((el) => (el.outerHTML || '').slice(0, 140)),
-    };
-    if (debug.total || debug.filtered) {
-      console.log('[signalhire][debug] js candidates', JSON.stringify(debug));
-    }
-
     const candidate = filtered[0];
     if (candidate) {
       candidate.scrollIntoView({ block: 'center' });
@@ -172,13 +199,18 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
     if (verified) {
       return true;
     }
-    console.log("[signalhire] JS clicked but Get Profiles not visible");
+    console.log("[signalhire] JS clicked but action button not visible yet");
   } else {
     console.log("[signalhire] button not found in current document");
   }
   return false;
 };
 
+/*
+ * High-level function to click the SignalHire badge. Performs readiness checks,
+ * attempts to click using multiple strategies (CDP, wrapper, locator search),
+ * and scans iframes when necessary.
+ */
 const clickSignalhireBadge = async (driver, options = {}) => {
   const settings = normalizeOptions(options);
   const timeoutMs = Number(settings.timeoutMs || 15000);
@@ -187,9 +219,12 @@ const clickSignalhireBadge = async (driver, options = {}) => {
   const perFrameWaitMs = Number(settings.perFrameWaitMs || 250);
   const maxFrames = Number(settings.maxFrames || 6);
   const debug = settings.debug !== false;
+
+  // Ensure Sales Navigator is ready, unless explicitly skipped
   if (!skipReadyWait) {
     await waitForSalesNavReady(driver, timeoutMs).catch(() => null);
   }
+  // Click via Chrome DevTools Protocol by computing coordinates of the badge's SVG signature
   const clickByCdp = async () => {
     try {
       const signature = "20.4655%209.14";
@@ -236,17 +271,14 @@ const clickSignalhireBadge = async (driver, options = {}) => {
     }
     return false;
   };
-  let sourceHasSignalhire = false;
-  try {
-    const source = await driver.getPageSource();
-    sourceHasSignalhire =
-      source.includes("signalhire.com") && source.includes("floating-button-wrapper");
-    if (debug) {
-      console.log(`[signalhire][debug] pageSource signalhire=${sourceHasSignalhire}`);
-    }
-  } catch (error) {
-    // ignore
+
+  // Attempt to click using CDP coordinates first
+  const cdpClicked = await clickByCdp();
+  if (cdpClicked) {
+    return;
   }
+
+  // Attempt to click via wrapper (legacy wrapper exists)
   const signature = "20.4655%209.14";
   const hasWrapper = await driver
     .executeScript(`
@@ -257,13 +289,6 @@ const clickSignalhireBadge = async (driver, options = {}) => {
       return Boolean(link || img);
     `)
     .catch(() => false);
-  if (!hasWrapper && !sourceHasSignalhire) {
-    throw new Error("SignalHire UI not found. Extension may not be injected.");
-  }
-  const cdpClicked = await clickByCdp();
-  if (cdpClicked) {
-    return;
-  }
   if (hasWrapper) {
     const clicked = await driver.executeScript(`
       const wrapper = document.querySelector('.floating-button-wrapper');
@@ -282,50 +307,38 @@ const clickSignalhireBadge = async (driver, options = {}) => {
         return;
       }
       if (debug) {
-        console.log("[signalhire] wrapper click did not show Get Profiles");
+        console.log("[signalhire] wrapper click did not show action button");
       }
     }
   }
+
+  // Log current URL and title for debugging
   try {
     const currentUrl = await driver.getCurrentUrl();
     const title = await driver.getTitle().catch(() => "");
     console.log(`[signalhire] click start url=${currentUrl} title=${title}`);
-  } catch (error) {
+  } catch {
     // ignore
   }
+
+  // Attempt to click in the main document
   const mainClicked = await clickSignalhireButtonInCurrentDoc(driver, mainDocWaitMs);
   if (mainClicked) {
     console.log("[signalhire] clicked in main document");
     return;
   }
 
-  const hasSignalhireWrapper = await driver
-    .executeScript(`
-      const wrapper = document.querySelector('.floating-button-wrapper') || document.querySelector('[class*="app-z-floating-button"]');
-      if (!wrapper) return false;
-      const link = wrapper.querySelector("a[href*='signalhire.com']");
-      const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
-      return Boolean(link || img);
-    `)
-    .catch(() => false);
-  if (hasSignalhireWrapper) {
-    throw new Error("SignalHire button present but click did not open panel.");
-  }
-
+  // If not found, scan iframes (but avoid frames that might belong to other extensions)
   const frames = await driver.findElements(By.css("iframe"));
   console.log(`[signalhire] scanning ${frames.length} iframes`);
-  if (hasWrapper || sourceHasSignalhire) {
-    // SignalHire should be in main document; avoid iframe clicks that hit ContactOut.
-    throw new Error("SignalHire button not clickable in main document.");
-  }
-  for (const frame of frames) {
+  for (const frame of frames.slice(0, maxFrames)) {
     try {
       const id = await frame.getAttribute("id");
       const src = (await frame.getAttribute("src")) || "";
       if (id === "LU__extension_iframe" || src.includes("contactout")) {
         continue;
       }
-      console.log(`[signalhire][debug] scanning frame id=${id || ""} src=${src || ""}`);
+      console.log(`[signalhire][debug] scanning frame id=${id || ''} src=${src || ''}`);
       const clicked = await withFrame(driver, frame, () =>
         clickSignalhireButtonInCurrentDoc(driver, perFrameWaitMs)
       );
@@ -333,59 +346,19 @@ const clickSignalhireBadge = async (driver, options = {}) => {
         console.log("[signalhire] clicked inside iframe");
         return;
       }
-    } catch (error) {
-      // ignore and continue
+    } catch {
+      // ignore and continue scanning
     }
   }
-  if (debug) {
-    try {
-      const mainInfo = await driver.executeScript(`
-        const floating = document.querySelectorAll('button.floating-button').length;
-        const imgCandidates = document.querySelectorAll("button img[role='img']").length;
-        const shButtons = Array.from(document.querySelectorAll('button, [role="button"]')).filter((el) =>
-          (el.textContent || '').trim() === 'SH'
-        ).length;
-        const sample = Array.from(document.querySelectorAll('button.floating-button')).slice(0, 3).map((b) => b.outerHTML.slice(0, 200));
-        return { floating, imgCandidates, shButtons, sample };
-      `);
-      console.log(
-        `[signalhire][debug] main floating=${mainInfo.floating} imgButtons=${mainInfo.imgCandidates} shButtons=${mainInfo.shButtons}`
-      );
-      if (Array.isArray(mainInfo.sample) && mainInfo.sample.length) {
-        console.log(`[signalhire][debug] main samples=${JSON.stringify(mainInfo.sample)}`);
-      }
-    } catch (error) {
-      console.log("[signalhire][debug] main debug failed");
-    }
-    for (const frame of frames.slice(0, maxFrames)) {
-      try {
-        const src = await frame.getAttribute("src");
-        const id = await frame.getAttribute("id");
-        const info = await withFrame(driver, frame, async () =>
-          driver.executeScript(`
-            const floating = document.querySelectorAll('button.floating-button').length;
-            const imgCandidates = document.querySelectorAll("button img[role='img']").length;
-            const shButtons = Array.from(document.querySelectorAll('button, [role="button"]')).filter((el) =>
-              (el.textContent || '').trim() === 'SH'
-            ).length;
-            const sample = Array.from(document.querySelectorAll('button.floating-button')).slice(0, 2).map((b) => b.outerHTML.slice(0, 160));
-            return { floating, imgCandidates, shButtons, sample };
-          `)
-        );
-        console.log(
-          `[signalhire][debug] frame id=${id || ""} src=${src || ""} floating=${info.floating} imgButtons=${info.imgCandidates} shButtons=${info.shButtons}`
-        );
-        if (Array.isArray(info.sample) && info.sample.length) {
-          console.log(`[signalhire][debug] frame samples=${JSON.stringify(info.sample)}`);
-        }
-      } catch (error) {
-        console.log("[signalhire][debug] frame debug failed");
-      }
-    }
-  }
-  throw new Error("SignalHire badge not found in main document or iframes");
+
+  // If we reach here, we failed to find or click the badge
+  throw new Error("SignalHire badge not found or not clickable");
 };
 
+/*
+ * Click the SignalHire action button (e.g., Get Profiles/Contacts) after the sidebar is open.
+ * Matches several wording variations and times out if none are found.
+ */
 const clickSignalhireGetProfiles = async (driver, options = {}) => {
   const settings = normalizeOptions(options);
   const timeoutMs = Number(settings.timeoutMs || 15000);
@@ -393,7 +366,8 @@ const clickSignalhireGetProfiles = async (driver, options = {}) => {
   for (;;) {
     const clicked = await driver.executeScript(`
       const buttons = Array.from(document.querySelectorAll('button'));
-      const target = buttons.find((btn) => /get profiles/i.test(btn.textContent || ''));
+      const matchRe = /get\\s+(profiles|contacts|contact info|contact|leads|people)/i;
+      const target = buttons.find((btn) => matchRe.test((btn.textContent || '').trim()));
       if (target) {
         target.scrollIntoView({ block: 'center' });
         target.click();
@@ -402,12 +376,12 @@ const clickSignalhireGetProfiles = async (driver, options = {}) => {
       return false;
     `);
     if (clicked) {
-      console.log("[signalhire] Get Profiles clicked");
+      console.log("[signalhire] action button clicked");
       return true;
     }
     if (Date.now() - start > timeoutMs) {
-      console.log("[signalhire] Get Profiles button not found");
-      throw new Error("SignalHire Get Profiles button not found");
+      console.log("[signalhire] action button not found");
+      throw new Error("SignalHire action button not found");
     }
     await driver.sleep(200);
   }

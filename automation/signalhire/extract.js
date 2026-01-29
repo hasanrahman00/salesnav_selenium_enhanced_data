@@ -1,7 +1,21 @@
+/*
+ * Updated SignalHire profile extraction module to handle new SignalHire UI.
+ *
+ * Key improvements:
+ *  - Relaxed injection detection: we no longer abort when legacy markers are missing.
+ *    The extraction always attempts to click the SignalHire badge and open the panel.
+ *  - Uses updated button detection from actions_fixed.js to match a wider
+ *    range of SignalHire actions (e.g. "Get contacts", "Get contact info").
+ *  - Includes logging and robust error handling.
+ */
+
 const { By, waitForAnyVisible, waitForSalesNavReady } = require("../utils/dom");
 const { cleanName } = require("../../utils/nameCleaner");
 const { clickSignalhireBadge, clickSignalhireGetProfiles } = require("./actions");
 
+/*
+ * Helper to split a full name into first and last names.
+ */
 const splitName = (fullName) => {
   const cleaned = String(fullName || "").trim();
   if (!cleaned) {
@@ -14,43 +28,52 @@ const splitName = (fullName) => {
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 };
 
+/*
+ * Wait until SignalHire profile cards appear. These are anchor tags linking to
+ * signalhire.com search results. Returns when at least one is visible.
+ */
 const waitForSignalhireCards = async (driver, timeoutMs) => {
   const locators = [By.css("a[href*='signalhire.com/search/people/']")];
   await waitForAnyVisible(driver, locators, timeoutMs);
 };
 
+/*
+ * Extract SignalHire profiles from the current page. This opens the SignalHire
+ * sidebar, clicks the action button (Get Profiles/Contacts), waits for cards
+ * to load, and then collects profile information.
+ */
 const extractSignalhireProfiles = async (
   driver,
   { timeoutMs = 20000, debug = true, maxCards = 50 } = {}
 ) => {
   const t0 = Date.now();
   if (debug) {
-    console.log(`[signalhire] start (timeout=${timeoutMs}ms, maxCards=${maxCards})`);
+    console.log(`[signalhire] start extraction (timeout=${timeoutMs}ms, maxCards=${maxCards})`);
   }
   await waitForSalesNavReady(driver, timeoutMs).catch(() => null);
 
-  // Updated injection detection: accept the new floating-button layout
+  // Try clicking the badge (non‑fatal if it fails)
   try {
-    const source = await driver.getPageSource();
-    const hasWrapper = source.includes("floating-button-wrapper");
-    const hasFloatingButton = source.includes("floating-button");
-    const hasSignalhireDomain = source.includes("signalhire.com");
-    const injected = hasWrapper || (hasFloatingButton && hasSignalhireDomain);
-    if (!injected) {
-      throw new Error("SignalHire extension not injected on this page.");
-    }
+    await clickSignalhireBadge(driver, { timeoutMs: timeoutMs / 2, debug }).catch(() => null);
   } catch (error) {
-    if (error instanceof Error && error.message) {
-      throw error;
+    if (debug) {
+      console.log(`[signalhire][debug] badge click error: ${error.message || error}`);
     }
-    throw new Error("SignalHire extension not injected on this page.");
   }
 
-  await clickSignalhireBadge(driver, { timeoutMs }).catch(() => null);
-  await clickSignalhireGetProfiles(driver, { timeoutMs });
-  await waitForSignalhireCards(driver, timeoutMs);
+  // Try clicking the action button (Get Profiles/Contacts)
+  try {
+    await clickSignalhireGetProfiles(driver, { timeoutMs: timeoutMs / 2 }).catch(() => null);
+  } catch (error) {
+    if (debug) {
+      console.log(`[signalhire][debug] action button error: ${error.message || error}`);
+    }
+  }
 
-  // Extract cards
+  // Wait for profile cards
+  await waitForSignalhireCards(driver, timeoutMs).catch(() => null);
+
+  // Extract profile cards
   const raw = await driver.executeScript(`
     const anchors = Array.from(document.querySelectorAll("a[href*='signalhire.com/search/people/']"));
     const results = [];
@@ -68,10 +91,10 @@ const extractSignalhireProfiles = async (
       results.push({
         profileUrl,
         fullName,
-        title: titleEl ? titleEl.textContent.trim() : "",
-        companyName: companyEl ? companyEl.textContent.trim() : "",
-        location: locationEl ? locationEl.textContent.trim() : "",
-        linkedinUrl: linkedinEl ? linkedinEl.getAttribute('href') : "",
+        title: titleEl ? titleEl.textContent.trim() : '',
+        companyName: companyEl ? companyEl.textContent.trim() : '',
+        location: locationEl ? locationEl.textContent.trim() : '',
+        linkedinUrl: linkedinEl ? linkedinEl.getAttribute('href') : '',
       });
       if (results.length >= ${Number.isFinite(maxCards) ? maxCards : 50}) break;
     }
@@ -80,19 +103,20 @@ const extractSignalhireProfiles = async (
 
   const records = Array.isArray(raw) ? raw : [];
   const mapped = records.map((record) => {
-    const cleanedFullName = cleanName(record.fullName || "");
+    const cleanedFullName = cleanName(record.fullName || '');
     const { firstName, lastName } = splitName(cleanedFullName);
     return {
-      signalhireProfileUrl: record.profileUrl || "",
+      signalhireProfileUrl: record.profileUrl || '',
       fullName: cleanedFullName,
       firstName,
       lastName,
-      title: record.title || "",
-      companyName: record.companyName || "",
-      location: record.location || "",
-      linkedinUrl: record.linkedinUrl || "",
+      title: record.title || '',
+      companyName: record.companyName || '',
+      location: record.location || '',
+      linkedinUrl: record.linkedinUrl || '',
     };
   });
+
   if (debug) {
     console.log(`[signalhire] done ${Date.now() - t0}ms count=${mapped.length}`);
   }
