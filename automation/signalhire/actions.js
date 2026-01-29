@@ -33,6 +33,8 @@ const withFrame = async (driver, frameEl, fn) => {
 /*
  * Generate possible locator strategies for the SignalHire floating badge.
  * We include several CSS and XPath selectors that cover common variations.
+ * Note: We match on '478ACC' (the SVG colour code) instead of the older
+ * path signature '20.4655%209.14'.
  */
 const getSignalhireLocators = () => [
   By.xpath("//*[normalize-space(text())='SH']"),
@@ -40,7 +42,8 @@ const getSignalhireLocators = () => [
   By.css("[role='button'].floating-button"),
   By.css("button.floating-button img[role='img']"),
   By.css("button.floating-button svg[data-testid='drag-vertical']"),
-  By.xpath("//img[@role='img' and contains(@src,'20.4655%209.14')]/ancestor::button[1]"),
+  // Match the SignalHire SVG colour code in the data URI rather than the older path signature
+  By.xpath("//img[@role='img' and contains(@src,'478ACC')]/ancestor::button[1]"),
   By.xpath("//button[contains(@class,'floating-button')]"),
   By.xpath("//button[normalize-space()='SH' or .//span[normalize-space()='SH'] or .//div[normalize-space()='SH']]"),
   By.xpath("//*[@role='button' and normalize-space()='SH']")
@@ -99,15 +102,13 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
           const html = String(await candidates[i].getAttribute('outerHTML') || '').toLowerCase();
           const text = await candidates[i].getText().catch(() => '');
           if (html.includes('contactout') || html.includes('lusha') || html.includes('seamless.ai')) {
-            // skip known non‑SignalHire buttons
-            continue;
+            continue; // skip non-SignalHire buttons
           }
           filtered.push(candidates[i]);
           console.log(
             `[signalhire][debug] locator candidate text=${JSON.stringify(text)} html=${JSON.stringify(html.slice(0, 180))}`
           );
         } catch {
-          // if we can’t read HTML/text, assume it could be valid
           filtered.push(candidates[i]);
         }
       }
@@ -123,7 +124,6 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
         } catch {
           await driver.executeScript("arguments[0].click();", el);
         }
-        // Verify by waiting for any accepted Get Profiles/Contacts button
         const verified = await waitForGetProfiles(driver, verifyMs);
         if (verified) {
           return true;
@@ -158,7 +158,7 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
       }
       return results;
     };
-    const signature = '20.4655%209.14';
+    const signature = '478ACC';
     const bySignatureImg = Array.from(document.querySelectorAll("img[role='img'][src^='data:image/svg+xml']")).find((img) => {
       const src = img.getAttribute('src') || '';
       return src.includes(signature);
@@ -180,7 +180,7 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
       const wrapper = el.closest('.floating-button-wrapper');
       if (wrapper) {
         const link = wrapper.querySelector("a[href*='signalhire.com']");
-        const img = wrapper.querySelector("img[role='img'][src*='20.4655%209.14']");
+        const img = wrapper.querySelector("img[role='img'][src*='478ACC']");
         if (link || img) return true;
       }
       return true;
@@ -224,12 +224,13 @@ const clickSignalhireBadge = async (driver, options = {}) => {
   if (!skipReadyWait) {
     await waitForSalesNavReady(driver, timeoutMs).catch(() => null);
   }
+
   // Click via Chrome DevTools Protocol by computing coordinates of the badge's SVG signature
   const clickByCdp = async () => {
     try {
-      const signature = "20.4655%209.14";
+      const signature = "478ACC";
       const rect = await driver.executeScript(`
-        const img = document.querySelector("img[role='img'][src*='${signature}']");
+        const img = document.querySelector(\`img[role='img'][src*='${signature}']\`);
         if (!img) return null;
         const button = img.closest('button') || img;
         const r = button.getBoundingClientRect();
@@ -279,7 +280,7 @@ const clickSignalhireBadge = async (driver, options = {}) => {
   }
 
   // Attempt to click via wrapper (legacy wrapper exists)
-  const signature = "20.4655%209.14";
+  const signature = "478ACC";
   const hasWrapper = await driver
     .executeScript(`
       const wrapper = document.querySelector('.floating-button-wrapper');
