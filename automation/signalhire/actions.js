@@ -17,10 +17,13 @@ const withFrame = async (driver, frameEl, fn) => {
 };
 
 const getSignalhireLocators = () => [
-  By.css("button.floating-button.left-0"),
-  By.css("button[class*='floating-button'][class*='left-0']"),
-  By.css("button.floating-button img[role='img'][src^='data:image/svg+xml']"),
-  By.xpath("//button[contains(@class,'floating-button') and contains(@class,'left-0')]") ,
+  By.xpath("//*[normalize-space(text())='SH']"),
+  By.css("button.floating-button"),
+  By.css("[role='button'].floating-button"),
+  By.css("button.floating-button img[role='img']"),
+  By.css("button.floating-button svg[data-testid='drag-vertical']"),
+  By.xpath("//img[@role='img' and contains(@src,'20.4655%209.14')]/ancestor::button[1]"),
+  By.xpath("//button[contains(@class,'floating-button')]") ,
   By.xpath("//button[normalize-space()='SH' or .//span[normalize-space()='SH'] or .//div[normalize-space()='SH']]") ,
   By.xpath("//*[@role='button' and normalize-space()='SH']")
 ];
@@ -58,6 +61,18 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
         // ignore
       }
     }
+    if (candidates.length) {
+      console.log(`[signalhire][debug] locator candidates=${candidates.length}`);
+      for (let i = 0; i < candidates.length; i += 1) {
+        try {
+          const html = await candidates[i].getAttribute("outerHTML");
+          const text = await candidates[i].getText().catch(() => "");
+          console.log(`[signalhire][debug] locator[${i}] text=${JSON.stringify(text)} html=${JSON.stringify(String(html || "").slice(0, 180))}`);
+        } catch (error) {
+          // ignore
+        }
+      }
+    }
     for (const el of candidates) {
       console.log("[signalhire] button found via locator");
       await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", el);
@@ -77,23 +92,69 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
     // fall through to JS search
   }
   const clicked = await driver.executeScript(`
-    const svgSignature = "20.4655%209.14";
-    const candidates = Array.from(document.querySelectorAll('button.floating-button'));
-    const byLeft = candidates.find((btn) => btn.className.includes('left-0'));
-    const byImg = candidates.find((btn) => {
-      const img = btn.querySelector("img[role='img'].w-6.max-w-6");
-      if (!img) return false;
+    const findFloating = (root) => {
+      const buttons = Array.from(root.querySelectorAll('button.floating-button, [role="button"].floating-button'));
+      if (buttons.length) return buttons;
+      return Array.from(root.querySelectorAll('button')).filter((btn) =>
+        btn.querySelector("img[role='img']") || btn.querySelector("svg[data-testid='drag-vertical']")
+      );
+    };
+
+    const findInShadow = (root) => {
+      const results = [];
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      let node = walker.currentNode;
+      while (node) {
+        if (node.shadowRoot) {
+          results.push(...findFloating(node.shadowRoot));
+        }
+        node = walker.nextNode();
+      }
+      return results;
+    };
+
+    const signature = '20.4655%209.14';
+    const bySignatureImg = Array.from(document.querySelectorAll("img[role='img'][src^='data:image/svg+xml']")).find((img) => {
       const src = img.getAttribute('src') || '';
-      return src.includes(svgSignature);
-    });
-    const byImgFallback = Array.from(document.querySelectorAll('button img[role="img"]')).find((img) => {
-      const src = img.getAttribute('src') || '';
-      return src.includes(svgSignature);
+      return src.includes(signature);
     });
     const byText = Array.from(document.querySelectorAll('button, [role="button"]')).find((el) =>
       (el.textContent || '').trim() === 'SH'
     );
-    const candidate = byImg?.closest('button') || byLeft || byImgFallback?.closest('button') || byText?.closest('button') || byText;
+    const candidates = [
+      ...findFloating(document),
+      ...findInShadow(document),
+      ...(bySignatureImg ? [bySignatureImg.closest('button')] : []),
+      ...(byText ? [byText.closest('button') || byText] : []),
+    ].filter(Boolean);
+
+    const filtered = candidates.filter((el) => {
+      const html = (el.outerHTML || '').toLowerCase();
+      if (html.includes('contactout') || html.includes('lusha')) {
+        return false;
+      }
+      const wrapper = el.closest('.floating-button-wrapper');
+      if (wrapper) {
+        const link = wrapper.querySelector("a[href*='signalhire.com']");
+        const img = wrapper.querySelector("img[role='img'][src*='20.4655%209.14']");
+        if (link || img) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    const debug = {
+      total: candidates.length,
+      filtered: filtered.length,
+      samples: candidates.slice(0, 3).map((el) => (el.outerHTML || '').slice(0, 140)),
+      filteredSamples: filtered.slice(0, 3).map((el) => (el.outerHTML || '').slice(0, 140)),
+    };
+    if (debug.total || debug.filtered) {
+      console.log('[signalhire][debug] js candidates', JSON.stringify(debug));
+    }
+
+    const candidate = filtered[0];
     if (candidate) {
       candidate.scrollIntoView({ block: 'center' });
       candidate.click();
@@ -125,6 +186,100 @@ const clickSignalhireBadge = async (driver, options = {}) => {
   if (!skipReadyWait) {
     await waitForSalesNavReady(driver, timeoutMs).catch(() => null);
   }
+  const clickByCdp = async () => {
+    try {
+      const signature = "20.4655%209.14";
+      const rect = await driver.executeScript(`
+        const img = document.querySelector("img[role='img'][src*='${signature}']");
+        if (!img) return null;
+        const button = img.closest('button') || img;
+        const r = button.getBoundingClientRect();
+        if (!r || r.width === 0 || r.height === 0) return null;
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      `);
+      if (!rect) {
+        return false;
+      }
+      await driver.executeCdpCommand("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: rect.x,
+        y: rect.y,
+        button: "none",
+      });
+      await driver.executeCdpCommand("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: rect.x,
+        y: rect.y,
+        button: "left",
+        clickCount: 1,
+      });
+      await driver.executeCdpCommand("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: rect.x,
+        y: rect.y,
+        button: "left",
+        clickCount: 1,
+      });
+      const verified = await waitForGetProfiles(driver, timeoutMs).catch(() => false);
+      if (verified) {
+        console.log("[signalhire] clicked via CDP");
+        return true;
+      }
+    } catch (error) {
+      if (debug) {
+        console.log("[signalhire] CDP click failed");
+      }
+    }
+    return false;
+  };
+  let sourceHasSignalhire = false;
+  try {
+    const source = await driver.getPageSource();
+    sourceHasSignalhire =
+      source.includes("signalhire.com") && source.includes("floating-button-wrapper");
+    if (debug) {
+      console.log(`[signalhire][debug] pageSource signalhire=${sourceHasSignalhire}`);
+    }
+  } catch (error) {
+    // ignore
+  }
+  const signature = "20.4655%209.14";
+  const hasWrapper = await driver.executeScript(`
+    const wrapper = document.querySelector('.floating-button-wrapper');
+    if (!wrapper) return false;
+    const link = wrapper.querySelector("a[href*='signalhire.com']");
+    const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
+    return Boolean(link || img);
+  `).catch(() => false);
+  if (!hasWrapper && !sourceHasSignalhire) {
+    throw new Error("SignalHire UI not found. Extension may not be injected.");
+  }
+  const cdpClicked = await clickByCdp();
+  if (cdpClicked) {
+    return;
+  }
+  if (hasWrapper) {
+    const clicked = await driver.executeScript(`
+      const wrapper = document.querySelector('.floating-button-wrapper');
+      if (!wrapper) return false;
+      const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
+      const btn = img ? img.closest('button') : wrapper.querySelector('button.floating-button');
+      if (!btn) return false;
+      btn.scrollIntoView({ block: 'center' });
+      btn.click();
+      return true;
+    `);
+    if (clicked) {
+      const verified = await waitForGetProfiles(driver, timeoutMs);
+      if (verified) {
+        console.log("[signalhire] clicked via wrapper");
+        return;
+      }
+      if (debug) {
+        console.log("[signalhire] wrapper click did not show Get Profiles");
+      }
+    }
+  }
   try {
     const currentUrl = await driver.getCurrentUrl();
     const title = await driver.getTitle().catch(() => "");
@@ -138,10 +293,31 @@ const clickSignalhireBadge = async (driver, options = {}) => {
     return;
   }
 
+  const hasSignalhireWrapper = await driver.executeScript(`
+    const wrapper = document.querySelector('.floating-button-wrapper') || document.querySelector('[class*="app-z-floating-button"]');
+    if (!wrapper) return false;
+    const link = wrapper.querySelector("a[href*='signalhire.com']");
+    const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
+    return Boolean(link || img);
+  `).catch(() => false);
+  if (hasSignalhireWrapper) {
+    throw new Error("SignalHire button present but click did not open panel.");
+  }
+
   const frames = await driver.findElements(By.css("iframe"));
   console.log(`[signalhire] scanning ${frames.length} iframes`);
-  for (const frame of frames.slice(0, maxFrames)) {
+  if (hasWrapper || sourceHasSignalhire) {
+    // SignalHire should be in main document; avoid iframe clicks that hit ContactOut.
+    throw new Error("SignalHire button not clickable in main document.");
+  }
+  for (const frame of frames) {
     try {
+      const id = await frame.getAttribute("id");
+      const src = (await frame.getAttribute("src")) || "";
+      if (id === "LU__extension_iframe" || src.includes("contactout")) {
+        continue;
+      }
+      console.log(`[signalhire][debug] scanning frame id=${id || ""} src=${src || ""}`);
       const clicked = await withFrame(driver, frame, () =>
         clickSignalhireButtonInCurrentDoc(driver, perFrameWaitMs)
       );

@@ -28,6 +28,19 @@ const extractSignalhireProfiles = async (
     console.log(`[signalhire] start (timeout=${timeoutMs}ms, maxCards=${maxCards})`);
   }
   await waitForSalesNavReady(driver, timeoutMs).catch(() => null);
+  try {
+    const source = await driver.getPageSource();
+    const injected =
+      source.includes("signalhire.com") && source.includes("floating-button-wrapper");
+    if (!injected) {
+      throw new Error("SignalHire extension not injected on this page.");
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error("SignalHire extension not injected on this page.");
+  }
   await clickSignalhireBadge(driver, { timeoutMs }).catch(() => null);
   await clickSignalhireGetProfiles(driver, { timeoutMs });
   await waitForSignalhireCards(driver, timeoutMs);

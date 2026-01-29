@@ -193,14 +193,32 @@ const runPageExtraction = async ({
     timings.preExtractMs = Date.now() - tPre;
   }
 
+  if (driver) {
+    await humanScrollSalesDashboard(driver, {
+      minSteps: Number(process.env.HUMAN_SCROLL_MIN_STEPS || 7),
+      maxSteps: Number(process.env.HUMAN_SCROLL_MAX_STEPS || 10),
+      stepPx: Number(process.env.HUMAN_SCROLL_STEP_PX || 200),
+      minDelayMs: Number(process.env.HUMAN_SCROLL_MIN_DELAY_MS || 200),
+      maxDelayMs: Number(process.env.HUMAN_SCROLL_MAX_DELAY_MS || 550),
+      timeoutMs: Number(process.env.HUMAN_SCROLL_TIMEOUT_MS || 15000),
+      maxRounds: Number(process.env.HUMAN_SCROLL_MAX_ROUNDS || 20),
+      bottomStallLimit: Number(process.env.HUMAN_SCROLL_BOTTOM_STALL_LIMIT || 4),
+    });
+  }
+
   let signalhireData = [];
   if (driver) {
     const signalhireStart = Date.now();
-    signalhireData = await extractSignalhireProfiles(driver, {
-      timeoutMs: Number(process.env.SIGNALHIRE_TIMEOUT_MS || 15000),
-      debug: true,
-      maxCards: Number(process.env.SIGNALHIRE_MAX_CARDS || 50),
-    }).catch(() => []);
+    try {
+      signalhireData = await extractSignalhireProfiles(driver, {
+        timeoutMs: Number(process.env.SIGNALHIRE_TIMEOUT_MS || 15000),
+        debug: true,
+        maxCards: Number(process.env.SIGNALHIRE_MAX_CARDS || 50),
+      });
+    } catch (error) {
+      console.error("[signalhire] failed", error && error.message ? error.message : error);
+      throw error;
+    }
     timings.signalhireExtractMs = Date.now() - signalhireStart;
   }
 
@@ -301,17 +319,6 @@ const runPageExtraction = async ({
       timings.contactoutExtractMs = Date.now() - contactoutStart;
       contactoutSeconds = Number((timings.contactoutExtractMs / 1000).toFixed(2));
       mergeContactoutDomains(records, contactoutData);
-
-      await humanScrollSalesDashboard(driver, {
-        minSteps: Number(process.env.HUMAN_SCROLL_MIN_STEPS || 7),
-        maxSteps: Number(process.env.HUMAN_SCROLL_MAX_STEPS || 10),
-        stepPx: Number(process.env.HUMAN_SCROLL_STEP_PX || 200),
-        minDelayMs: Number(process.env.HUMAN_SCROLL_MIN_DELAY_MS || 200),
-        maxDelayMs: Number(process.env.HUMAN_SCROLL_MAX_DELAY_MS || 550),
-        timeoutMs: Number(process.env.HUMAN_SCROLL_TIMEOUT_MS || 15000),
-        maxRounds: Number(process.env.HUMAN_SCROLL_MAX_ROUNDS || 20),
-        bottomStallLimit: Number(process.env.HUMAN_SCROLL_BOTTOM_STALL_LIMIT || 4),
-      });
     }
   } catch (error) {
     if (error && error.code === "AUTH_EXPIRED") {
