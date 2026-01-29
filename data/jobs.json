@@ -1,13 +1,13 @@
 [
   {
-    "id": "5b68e746-a507-4748-9fca-ad966bba177a",
-    "name": "dsfwe #5b68e746",
-    "listName": "dsfwe",
-    "listUrl": "https://www.linkedin.com/sales/search/people?query=(recentSearchParam%3A(id%3A5415748340%2CdoLogHistory%3Atrue)%2Cfilters%3AList((type%3AREGION%2Cvalues%3AList((id%3A105621717%2Ctext%3AOrange%2520County%252C%2520California%252C%2520United%2520States%2CselectionType%3AINCLUDED)))%2C(type%3ACURRENT_TITLE%2Cvalues%3AList((id%3A1%2Ctext%3AOwner%2CselectionType%3AINCLUDED)))%2C(type%3ACOMPANY_HEADQUARTERS%2Cvalues%3AList((id%3A105621717%2Ctext%3AOrange%2520County%252C%2520California%252C%2520United%2520States%2CselectionType%3AINCLUDED)))))&sessionId=hd3p0rknQKuPau2me%2BOu0Q%3D%3D&viewAllFilters=true",
+    "id": "b5162e8b-ec1e-4a28-a08d-a4d78178bf29",
+    "name": "dsf #b5162e8b",
+    "listName": "dsf",
+    "listUrl": "https://www.linkedin.com/sales/search/people?query=(recentSearchParam%3A(doLogHistory%3Atrue)%2Cfilters%3AList((type%3ACOMPANY_HEADCOUNT%2Cvalues%3AList((id%3AA%2Ctext%3ASelf-employed%2CselectionType%3AINCLUDED)))))&sessionId=M0jzi3hjQ5aADSvbV9jERw%3D%3D&viewAllFilters=true",
     "status": "Failed",
     "total": 0,
-    "filePath": "C:\\Users\\Hassan\\OneDrive\\Documents\\salesnav_selenium_enhanced_data\\data\\dsfwe-1769624379127.csv",
-    "startedAt": "2026-01-28T18:19:39.129Z",
+    "filePath": "C:\\Users\\Hassan\\OneDrive\\Documents\\salesnav_selenium_enhanced_data\\data\\dsf-1769664441567.csv",
+    "startedAt": "2026-01-29T05:27:21.568Z",
     "error": "SignalHire extension not injected on this page."
   }
 ]

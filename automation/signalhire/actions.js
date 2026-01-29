@@ -23,9 +23,9 @@ const getSignalhireLocators = () => [
   By.css("button.floating-button img[role='img']"),
   By.css("button.floating-button svg[data-testid='drag-vertical']"),
   By.xpath("//img[@role='img' and contains(@src,'20.4655%209.14')]/ancestor::button[1]"),
-  By.xpath("//button[contains(@class,'floating-button')]") ,
-  By.xpath("//button[normalize-space()='SH' or .//span[normalize-space()='SH'] or .//div[normalize-space()='SH']]") ,
-  By.xpath("//*[@role='button' and normalize-space()='SH']")
+  By.xpath("//button[contains(@class,'floating-button')]"),
+  By.xpath("//button[normalize-space()='SH' or .//span[normalize-space()='SH'] or .//div[normalize-space()='SH']]"),
+  By.xpath("//*[@role='button' and normalize-space()='SH']"),
 ];
 
 const hasGetProfilesButton = async (driver) => {
@@ -67,7 +67,11 @@ const clickSignalhireButtonInCurrentDoc = async (driver, timeoutMs, verifyMs = 1
         try {
           const html = await candidates[i].getAttribute("outerHTML");
           const text = await candidates[i].getText().catch(() => "");
-          console.log(`[signalhire][debug] locator[${i}] text=${JSON.stringify(text)} html=${JSON.stringify(String(html || "").slice(0, 180))}`);
+          console.log(
+            `[signalhire][debug] locator[${i}] text=${JSON.stringify(
+              text
+            )} html=${JSON.stringify(String(html || "").slice(0, 180))}`
+          );
         } catch (error) {
           // ignore
         }
@@ -244,13 +248,15 @@ const clickSignalhireBadge = async (driver, options = {}) => {
     // ignore
   }
   const signature = "20.4655%209.14";
-  const hasWrapper = await driver.executeScript(`
-    const wrapper = document.querySelector('.floating-button-wrapper');
-    if (!wrapper) return false;
-    const link = wrapper.querySelector("a[href*='signalhire.com']");
-    const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
-    return Boolean(link || img);
-  `).catch(() => false);
+  const hasWrapper = await driver
+    .executeScript(`
+      const wrapper = document.querySelector('.floating-button-wrapper');
+      if (!wrapper) return false;
+      const link = wrapper.querySelector("a[href*='signalhire.com']");
+      const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
+      return Boolean(link || img);
+    `)
+    .catch(() => false);
   if (!hasWrapper && !sourceHasSignalhire) {
     throw new Error("SignalHire UI not found. Extension may not be injected.");
   }
@@ -293,13 +299,15 @@ const clickSignalhireBadge = async (driver, options = {}) => {
     return;
   }
 
-  const hasSignalhireWrapper = await driver.executeScript(`
-    const wrapper = document.querySelector('.floating-button-wrapper') || document.querySelector('[class*="app-z-floating-button"]');
-    if (!wrapper) return false;
-    const link = wrapper.querySelector("a[href*='signalhire.com']");
-    const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
-    return Boolean(link || img);
-  `).catch(() => false);
+  const hasSignalhireWrapper = await driver
+    .executeScript(`
+      const wrapper = document.querySelector('.floating-button-wrapper') || document.querySelector('[class*="app-z-floating-button"]');
+      if (!wrapper) return false;
+      const link = wrapper.querySelector("a[href*='signalhire.com']");
+      const img = wrapper.querySelector("img[role='img'][src*='${signature}']");
+      return Boolean(link || img);
+    `)
+    .catch(() => false);
   if (hasSignalhireWrapper) {
     throw new Error("SignalHire button present but click did not open panel.");
   }
@@ -340,7 +348,9 @@ const clickSignalhireBadge = async (driver, options = {}) => {
         const sample = Array.from(document.querySelectorAll('button.floating-button')).slice(0, 3).map((b) => b.outerHTML.slice(0, 200));
         return { floating, imgCandidates, shButtons, sample };
       `);
-      console.log(`[signalhire][debug] main floating=${mainInfo.floating} imgButtons=${mainInfo.imgCandidates} shButtons=${mainInfo.shButtons}`);
+      console.log(
+        `[signalhire][debug] main floating=${mainInfo.floating} imgButtons=${mainInfo.imgCandidates} shButtons=${mainInfo.shButtons}`
+      );
       if (Array.isArray(mainInfo.sample) && mainInfo.sample.length) {
         console.log(`[signalhire][debug] main samples=${JSON.stringify(mainInfo.sample)}`);
       }
@@ -362,7 +372,9 @@ const clickSignalhireBadge = async (driver, options = {}) => {
             return { floating, imgCandidates, shButtons, sample };
           `)
         );
-        console.log(`[signalhire][debug] frame id=${id || ""} src=${src || ""} floating=${info.floating} imgButtons=${info.imgCandidates} shButtons=${info.shButtons}`);
+        console.log(
+          `[signalhire][debug] frame id=${id || ""} src=${src || ""} floating=${info.floating} imgButtons=${info.imgCandidates} shButtons=${info.shButtons}`
+        );
         if (Array.isArray(info.sample) && info.sample.length) {
           console.log(`[signalhire][debug] frame samples=${JSON.stringify(info.sample)}`);
         }
@@ -371,7 +383,6 @@ const clickSignalhireBadge = async (driver, options = {}) => {
       }
     }
   }
-
   throw new Error("SignalHire badge not found in main document or iframes");
 };
 
