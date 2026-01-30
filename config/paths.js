@@ -6,7 +6,6 @@ const publicDir = path.join(rootDir, "public");
 const cookiesFile = path.join(rootDir, "cookie.json");
 const contactoutCookiesFile = path.join(rootDir, "contactout.json");
 const lushaCookiesFile = path.join(rootDir, "lusha.json");
-const signalhireCookiesFile = path.join(rootDir, "signalhire.json");
 const extensionsDir = path.join(rootDir, "extensions");
 const profileDir = path.join(rootDir, "chrome-profile");
 
@@ -17,7 +16,6 @@ module.exports = {
   cookiesFile,
   contactoutCookiesFile,
   lushaCookiesFile,
-  signalhireCookiesFile,
   extensionsDir,
   profileDir,
 };

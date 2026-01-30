@@ -2,7 +2,7 @@ const path = require("path");
 const { dataDir } = require("../../config/paths");
 
 const csvHeader =
-  "Url Number,Page Number,Profile Url,Full Name,First Name,Last Name,Title,Company Name,Person Location,Person Linkedin,Website,Website_one";
+  "Full Name,First Name,Last Name,Title,Person LinkedIn,Person City,Person State,Person Country,Linkedin Premium,In Role,In Company,LinkedIn Url,Website,Website_One";
 
 const normalizeName = (name) => {
   return String(name || "")
@@ -28,15 +28,17 @@ const escapeCsvValue = (value) => {
 const toCsvRow = (record) => {
   const domains = Array.isArray(record.domains) ? record.domains : [];
   return [
-    escapeCsvValue(record.urlNumber ?? ""),
-    escapeCsvValue(record.pageNumber ?? ""),
-    escapeCsvValue(record.signalhireProfileUrl || ""),
     escapeCsvValue(record.fullName),
     escapeCsvValue(record.firstName),
     escapeCsvValue(record.lastName),
     escapeCsvValue(record.title || ""),
-    escapeCsvValue(record.companyName),
-    escapeCsvValue(record.location || ""),
+    escapeCsvValue(record.personLinkedIn || ""),
+    escapeCsvValue(record.personCity || ""),
+    escapeCsvValue(record.personState || ""),
+    escapeCsvValue(record.personCountry || ""),
+    escapeCsvValue(record.linkedinPremium || ""),
+    escapeCsvValue(record.inRole || ""),
+    escapeCsvValue(record.inCompany || ""),
     escapeCsvValue(record.linkedinUrl || ""),
     escapeCsvValue(domains[0] || ""),
     escapeCsvValue(domains[1] || ""),

@@ -12,11 +12,9 @@ const ensureManifest = (dir) => {
 const getExtensionPaths = () => {
   const contactout = path.join(extensionsDir, "contactout");
   const lusha = path.join(extensionsDir, "lusha");
-  const signalhire = path.join(extensionsDir, "Signalhire");
   ensureManifest(contactout);
   ensureManifest(lusha);
-  ensureManifest(signalhire);
-  return [contactout, lusha, signalhire];
+  return [contactout, lusha];
 };
 
 module.exports = {

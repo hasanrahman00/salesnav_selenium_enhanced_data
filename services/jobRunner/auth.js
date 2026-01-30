@@ -25,19 +25,6 @@ const ensureExtensionAuth = async (driver, cookies, name) => {
     }
     return;
   }
-  if (name === "SignalHire") {
-    const signalhireCheck = await confirmLoginInNewTab({
-      driver,
-      name: "SignalHire",
-      baseUrl: "https://www.signalhire.com",
-      confirmUrl: "https://www.signalhire.com/candidates/3c4f94c0b61d4f999d1bf0b6093f3fcb",
-      cookies: cookies.signalhire,
-    });
-    if (!signalhireCheck.ok) {
-      throw createAuthError("SignalHire", signalhireCheck.message);
-    }
-    return;
-  }
   const contactoutCheck = await confirmLoginInNewTab({
     driver,
     name: "ContactOut",

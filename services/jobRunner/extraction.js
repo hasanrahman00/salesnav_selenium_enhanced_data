@@ -4,7 +4,7 @@ const { extractLushaContacts } = require("../../automation/lusha/extract");
 const { clickLushaMinimize, clickLushaBadge } = require("../../automation/lusha/actions");
 const { clickContactoutBadge } = require("../../automation/contactout/actions");
 const { extractContactoutData } = require("../../automation/contactout/extract");
-const { extractSignalhireProfiles } = require("../../automation/signalhire/extract");
+const { extractSalesNavLeads } = require("../../automation/salesnav/extract");
 const { humanScrollSalesDashboard } = require("../../automation/utils/salesDashBoardScroller");
 const { getLeadListKey } = require("../../automation/utils/pagination");
 const { By, waitForAnyVisible, waitForSalesNavReady } = require("../../automation/utils/dom");
@@ -83,65 +83,6 @@ const mergeContactoutDomains = (records, contactoutRecords) => {
   return records;
 };
 
-const mergeSignalhireData = (records, signalhireRecords) => {
-  if (!Array.isArray(records) || !Array.isArray(signalhireRecords)) {
-    return records;
-  }
-
-  for (const signalhire of signalhireRecords) {
-    const shName = String(signalhire.fullName || "").toLowerCase();
-    const shCompany = String(signalhire.companyName || "").toLowerCase();
-    const shLinkedin = String(signalhire.linkedinUrl || "").toLowerCase();
-    let matched = false;
-
-    for (const record of records) {
-      if (!record) {
-        continue;
-      }
-      const recName = String(record.fullName || "").toLowerCase();
-      const recCompany = String(record.companyName || "").toLowerCase();
-      const recLinkedin = String(record.linkedinUrl || "").toLowerCase();
-      const nameMatch = shName && recName && shName === recName;
-      const companyMatch = shCompany && recCompany && shCompany === recCompany;
-      const linkedinMatch = shLinkedin && recLinkedin && shLinkedin === recLinkedin;
-
-      if (linkedinMatch || (nameMatch && (companyMatch || !shCompany || !recCompany))) {
-        if (!record.signalhireProfileUrl && signalhire.signalhireProfileUrl) {
-          record.signalhireProfileUrl = signalhire.signalhireProfileUrl;
-        }
-        if (!record.linkedinUrl && signalhire.linkedinUrl) {
-          record.linkedinUrl = signalhire.linkedinUrl;
-        }
-        if (!record.location && signalhire.location) {
-          record.location = signalhire.location;
-        }
-        if (!record.title && signalhire.title) {
-          record.title = signalhire.title;
-        }
-        if (!record.companyName && signalhire.companyName) {
-          record.companyName = signalhire.companyName;
-        }
-        if (!record.fullName && signalhire.fullName) {
-          record.fullName = signalhire.fullName;
-        }
-        if (!record.firstName && signalhire.firstName) {
-          record.firstName = signalhire.firstName;
-        }
-        if (!record.lastName && signalhire.lastName) {
-          record.lastName = signalhire.lastName;
-        }
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      records.push({ ...signalhire });
-    }
-  }
-  return records;
-};
-
 const hasLushaContacts = async (driver, timeoutMs = 1500) => {
   const locators = [
     By.css("[data-test-id='bulk-contact-container-with-data']"),
@@ -183,7 +124,6 @@ const runPageExtraction = async ({
     contactoutClickMs: 0,
     contactoutDelayMs: 0,
     contactoutExtractMs: 0,
-    signalhireExtractMs: 0,
     csvWriteMs: 0,
   };
   const flowStart = Date.now();
@@ -191,6 +131,14 @@ const runPageExtraction = async ({
     const tPre = Date.now();
     await driver.sleep(extractDelayMs);
     timings.preExtractMs = Date.now() - tPre;
+  }
+
+  if (driver) {
+    try {
+      await clickLushaBadge(driver, Number(process.env.LUSHA_BADGE_TIMEOUT_MS || 8000));
+    } catch (error) {
+      // keep going; extraction will retry if container not visible
+    }
   }
 
   if (driver) {
@@ -206,29 +154,11 @@ const runPageExtraction = async ({
     });
   }
 
-  let signalhireData = [];
-  if (driver) {
-    const signalhireStart = Date.now();
-    try {
-      signalhireData = await extractSignalhireProfiles(driver, {
-        timeoutMs: Number(process.env.SIGNALHIRE_TIMEOUT_MS || 15000),
-        debug: true,
-        maxCards: Number(process.env.SIGNALHIRE_MAX_CARDS || 50),
-      });
-    } catch (error) {
-      console.error("[signalhire] failed", error && error.message ? error.message : error);
-      throw error;
-    }
-    timings.signalhireExtractMs = Date.now() - signalhireStart;
-  }
-
-  if (driver) {
-    try {
-      await clickLushaBadge(driver, Number(process.env.LUSHA_BADGE_TIMEOUT_MS || 8000));
-    } catch (error) {
-      // keep going; extraction will retry if container not visible
-    }
-  }
+  const salesNavRecords = driver
+    ? await extractSalesNavLeads(driver, {
+        timeoutMs: Number(process.env.SALESNAV_EXTRACT_TIMEOUT_MS || 15000),
+      })
+    : [];
   const lushaStart = Date.now();
   const lushaRecords = driver
     ? await extractLushaContacts(driver, { maxCards: 25, debug: true, retryOnTimeout: true })
@@ -237,7 +167,7 @@ const runPageExtraction = async ({
   const lushaSeconds = (timings.lushaExtractMs / 1000).toFixed(2);
   updateJob(job.id, { lushaSeconds: Number(lushaSeconds) });
 
-  const records = Array.isArray(signalhireData) ? [...signalhireData] : [];
+  const records = Array.isArray(salesNavRecords) ? [...salesNavRecords] : [];
   mergeLushaDomains(records, lushaRecords);
 
   let contactoutSeconds = 0;
