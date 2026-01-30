@@ -13,9 +13,23 @@ const launchBrowser = () => {
     extensionPath.replace(/\\/g, "/")
   );
   const joined = normalizedExtensions.join(",");
-  fs.mkdirSync(profileDir, { recursive: true });
-  options.addArguments(`--user-data-dir=${profileDir}`);
-  options.addArguments("--profile-directory=Default");
+  const usePersistentProfile =
+    String(process.env.USE_PERSISTENT_PROFILE || "true").toLowerCase() === "true";
+  const resetProfileOnStart =
+    String(process.env.RESET_PROFILE_ON_START || "false").toLowerCase() === "true";
+
+  if (usePersistentProfile) {
+    if (resetProfileOnStart && fs.existsSync(profileDir)) {
+      fs.rmSync(profileDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(profileDir, { recursive: true });
+    options.addArguments(`--user-data-dir=${profileDir}`);
+    options.addArguments("--profile-directory=Default");
+  } else {
+    const runDir = path.join(profileDir, `run-${Date.now()}`);
+    fs.mkdirSync(runDir, { recursive: true });
+    options.addArguments(`--user-data-dir=${runDir}`);
+  }
   options.addArguments(`--load-extension=${joined}`);
   options.addArguments(
     "--no-first-run",

@@ -123,7 +123,9 @@ const extractSalesNavLeads = async (driver, { timeoutMs = 15000 } = {}) => {
       const fullName = getText(nameEl) || getText(anchor);
       const href = anchor ? anchor.getAttribute('href') : '';
       const titleEl = item.querySelector('[data-anonymize="title"]');
-      const companyEl = item.querySelector('[data-anonymize="company-name"]');
+      const companyEl = item.querySelector('[data-anonymize="company-name"]')
+        || item.querySelector('a[data-anonymize="company-name"]')
+        || item.querySelector('a.link--mercado');
       const locationEl = item.querySelector('[data-anonymize="location"]');
       const premium = Boolean(
         item.querySelector('li-icon[type="linkedin-premium-gold-icon"]')

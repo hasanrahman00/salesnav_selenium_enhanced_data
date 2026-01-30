@@ -332,8 +332,12 @@ function cleanName(raw) {
   // Quick split on spaces for immediate two‑token happy path
   let quickTokens = working.split(/\s+/);
   if (quickTokens.length === 2) {
-    quickTokens = quickTokens.map((t) => t.replace(/[^A-Za-z]/g, ""));
-    return quickTokens.map(titleCase).join(" ").trim();
+    quickTokens = quickTokens
+      .map((t) => stripDiacritics(t).replace(/[^A-Za-z]/g, ""))
+      .filter((t) => t && /[A-Za-z]/.test(t));
+    if (quickTokens.length === 2) {
+      return quickTokens.map(titleCase).join(" ").trim();
+    }
   }
 
   // -------------------------------------------------------------
@@ -346,11 +350,11 @@ function cleanName(raw) {
   // 2) Remove anything wrapped in (...) or [...]
   // -------------------------------------------------------------
   working = working.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
-
-  // Collapse multiple whitespace → single space
   working = working.replace(/\s+/g, " ").trim();
 
   let tokens = working.split(" ");
+  // Remove emoji/symbol-only tokens early
+  tokens = tokens.filter((t) => /[A-Za-z]/.test(stripDiacritics(t)));
 
   // -------------------------------------------------------------
   // 3) Short/special tail cleanup
@@ -377,9 +381,42 @@ function cleanName(raw) {
 
   // -------------------------------------------------------------
   // 6) Middle‑name trimming – keep first + last if >2 tokens
+  //    Prefer a real surname and skip noisy trailing words.
   // -------------------------------------------------------------
   if (tokens.length > 2) {
-    tokens = [tokens[0], tokens[tokens.length - 1]];
+    const noiseWords = new Set([
+      "media",
+      "authority",
+      "educator",
+      "reporter",
+      "writer",
+      "news",
+      "photo",
+      "backstage",
+      "trusted",
+      "world",
+      "aspire",
+      "greatness",
+      "entwriter",
+      "ent",
+    ]);
+    const stopWords = new Set(["to", "and", "of", "the", "in", "for", "on", "with"]);
+    const cleanToken = (t) => stripDiacritics(t).replace(/[^A-Za-z]/g, "");
+    const candidates = tokens
+      .map(cleanToken)
+      .filter(Boolean)
+      .filter((token) => !noiseWords.has(token.toLowerCase()))
+      .filter((token) => !stopWords.has(token.toLowerCase()))
+      .filter((token) => token.length >= 2);
+
+    if (candidates.length >= 2) {
+      const first = candidates[0];
+      const lastIndex = candidates.length >= 3 ? 2 : 1;
+      const last = candidates[lastIndex];
+      tokens = [first, last];
+    } else {
+      tokens = [tokens[0], tokens[tokens.length - 1]];
+    }
   }
 
   // Final safety: remove any still‑empty tokens

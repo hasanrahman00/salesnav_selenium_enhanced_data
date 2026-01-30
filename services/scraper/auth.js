@@ -63,6 +63,32 @@ const setCookiesFor = async (driver, url, cookies, redirectUrl) => {
   if (navigationGapMs > 0) {
     await driver.sleep(navigationGapMs);
   }
+  const clearBeforeSet =
+    String(process.env.CLEAR_COOKIES_ON_SET || "true").toLowerCase() === "true";
+  if (clearBeforeSet) {
+    try {
+      await driver.executeCdpCommand("Network.clearBrowserCookies", {});
+    } catch (error) {
+      // ignore
+    }
+    try {
+      await driver.executeCdpCommand("Network.clearBrowserCache", {});
+    } catch (error) {
+      // ignore
+    }
+    try {
+      await driver.manage().deleteAllCookies();
+    } catch (error) {
+      // ignore
+    }
+    try {
+      await driver.executeScript(
+        "window.localStorage.clear(); window.sessionStorage.clear();"
+      );
+    } catch (error) {
+      // ignore
+    }
+  }
   const prepared = cookies.map((cookie) => normalizeCookie(cookie)).filter(Boolean);
   for (const cookie of prepared) {
     try {

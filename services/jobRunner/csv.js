@@ -2,7 +2,7 @@ const path = require("path");
 const { dataDir } = require("../../config/paths");
 
 const csvHeader =
-  "Full Name,First Name,Last Name,Title,Person LinkedIn,Person City,Person State,Person Country,Linkedin Premium,In Role,In Company,LinkedIn Url,Website,Website_One";
+  "Full Name,First Name,Last Name,Title,Company Name,Person LinkedIn,Person City,Person State,Person Country,Linkedin Premium,In Role,In Company,LinkedIn Url,Website,Website_One";
 
 const normalizeName = (name) => {
   return String(name || "")
@@ -32,6 +32,7 @@ const toCsvRow = (record) => {
     escapeCsvValue(record.firstName),
     escapeCsvValue(record.lastName),
     escapeCsvValue(record.title || ""),
+    escapeCsvValue(record.companyName || ""),
     escapeCsvValue(record.personLinkedIn || ""),
     escapeCsvValue(record.personCity || ""),
     escapeCsvValue(record.personState || ""),

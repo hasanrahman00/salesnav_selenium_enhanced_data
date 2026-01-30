@@ -8,6 +8,7 @@ const state = {
 const cookiesInput = document.getElementById("cookiesInput");
 const cookiesSave = document.getElementById("cookiesSave");
 const cookiesValidate = document.getElementById("cookiesValidate");
+const cookiesDelete = document.getElementById("cookiesDelete");
 const cookiesError = document.getElementById("cookiesError");
 const listName = document.getElementById("listName");
 const listUrl = document.getElementById("listUrl");
@@ -193,6 +194,24 @@ const validateCookies = () => {
   }
 };
 
+const deleteCookies = async () => {
+  cookiesError.textContent = "";
+  cookiesInput.classList.remove("error-border");
+  try {
+    const res = await fetch("/api/cookies/linkedin", { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || "Failed to delete cookies");
+    }
+    cookiesInput.value = "";
+    state.cookiesSaved = false;
+    showToast("Cookies deleted");
+  } catch (error) {
+    cookiesError.textContent = error.message;
+    cookiesInput.classList.add("error-border");
+  }
+};
+
 const runJob = async () => {
   if (!validateInputs()) {
     return;
@@ -252,6 +271,7 @@ const handleAction = async (event) => {
 
 cookiesSave.addEventListener("click", saveCookies);
 cookiesValidate.addEventListener("click", validateCookies);
+cookiesDelete.addEventListener("click", deleteCookies);
 runScraper.addEventListener("click", runJob);
 jobsBody.addEventListener("click", handleAction);
 listName.addEventListener("input", () => updateRunDisabled(false));
