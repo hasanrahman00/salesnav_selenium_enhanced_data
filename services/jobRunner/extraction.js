@@ -135,23 +135,21 @@ const runPageExtraction = async ({
 
   if (driver) {
     try {
+      await waitForSalesNavReady(driver, Number(process.env.SALESNAV_READY_TIMEOUT_MS || 15000));
+      await humanScrollSalesDashboard(driver, {
+        minSteps: 1,
+        maxSteps: 1,
+        stepPx: Number(process.env.HUMAN_SCROLL_STEP_PX || 200),
+        minDelayMs: Number(process.env.HUMAN_SCROLL_MIN_DELAY_MS || 200),
+        maxDelayMs: Number(process.env.HUMAN_SCROLL_MAX_DELAY_MS || 550),
+        timeoutMs: Number(process.env.HUMAN_SCROLL_TIMEOUT_MS || 15000),
+        maxRounds: 1,
+        bottomStallLimit: 1,
+      });
       await clickLushaBadge(driver, Number(process.env.LUSHA_BADGE_TIMEOUT_MS || 8000));
     } catch (error) {
       // keep going; extraction will retry if container not visible
     }
-  }
-
-  if (driver) {
-    await humanScrollSalesDashboard(driver, {
-      minSteps: Number(process.env.HUMAN_SCROLL_MIN_STEPS || 7),
-      maxSteps: Number(process.env.HUMAN_SCROLL_MAX_STEPS || 10),
-      stepPx: Number(process.env.HUMAN_SCROLL_STEP_PX || 200),
-      minDelayMs: Number(process.env.HUMAN_SCROLL_MIN_DELAY_MS || 200),
-      maxDelayMs: Number(process.env.HUMAN_SCROLL_MAX_DELAY_MS || 550),
-      timeoutMs: Number(process.env.HUMAN_SCROLL_TIMEOUT_MS || 15000),
-      maxRounds: Number(process.env.HUMAN_SCROLL_MAX_ROUNDS || 20),
-      bottomStallLimit: Number(process.env.HUMAN_SCROLL_BOTTOM_STALL_LIMIT || 4),
-    });
   }
 
   const salesNavRecords = driver

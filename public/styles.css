@@ -191,6 +191,12 @@ input.error-border {
   padding: 0 28px;
 }
 
+.btn.small {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .btn[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -370,6 +376,35 @@ tr:hover {
 .badge.failed {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.badge.idle {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.enricher-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.enricher-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.enricher-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.enricher-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .empty-state {

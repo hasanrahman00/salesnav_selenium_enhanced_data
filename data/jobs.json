@@ -1,13 +1,19 @@
 [
   {
-    "id": "90663248-9294-4e22-b9d0-f263260ae8a9",
-    "name": "df #90663248",
-    "listName": "df",
-    "listUrl": "https://www.linkedin.com/sales/search/people?query=(recentSearchParam%3A(doLogHistory%3Atrue)%2Cfilters%3AList((type%3ACOMPANY_HEADCOUNT%2Cvalues%3AList((id%3AA%2Ctext%3ASelf-employed%2CselectionType%3AINCLUDED)))))&sessionId=M0jzi3hjQ5aADSvbV9jERw%3D%3D&viewAllFilters=true",
-    "status": "Running",
-    "total": 0,
-    "filePath": "C:\\Users\\Hassan\\OneDrive\\Documents\\salesnav_selenium_enhanced_data\\data\\df-1769669759858.csv",
-    "startedAt": "2026-01-29T06:55:59.859Z",
-    "error": null
+    "id": "edc2f62d-6c69-49ed-aea5-1299c10aff51",
+    "name": "dsf #edc2f62d",
+    "listName": "dsf",
+    "listUrl": "https://www.linkedin.com/sales/search/people?query=(recentSearchParam%3A(doLogHistory%3Atrue)%2Cfilters%3AList((type%3ACOMPANY_HEADCOUNT%2Cvalues%3AList((id%3AB%2Ctext%3A1-10%2CselectionType%3AINCLUDED)))))&sessionId=Utddm0LCSZ%2BU%2BQ9zN615tw%3D%3D&viewAllFilters=true",
+    "status": "Paused",
+    "total": 25,
+    "filePath": "C:\\Users\\Hassan\\OneDrive\\Documents\\salesnav_selenium_enhanced_data\\data\\dsf-1770054070917.csv",
+    "startedAt": "2026-02-02T17:41:10.920Z",
+    "error": null,
+    "lushaSeconds": 0.29,
+    "contactoutSeconds": 0.98,
+    "extractSeconds": 1.27,
+    "totalSeconds": 63.41,
+    "pageIndex": 2,
+    "urlNumber": 1
   }
 ]

@@ -3,6 +3,7 @@ const state = {
   jobs: [],
   bulkCsvText: "",
   bulkFileName: "",
+  enricherStatus: {},
 };
 
 const cookiesInput = document.getElementById("cookiesInput");
@@ -34,6 +35,23 @@ const formatSeconds = (value) => {
     return "—";
   }
   return Number(value).toFixed(2);
+};
+
+const formatEnricherStatus = (status) => {
+  switch (String(status || "").toLowerCase()) {
+    case "running":
+      return "Active";
+    case "paused":
+      return "Paused";
+    case "stopped":
+      return "Stopped";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    default:
+      return "Idle";
+  }
 };
 
 const updateRunDisabled = (loading = false) => {
@@ -104,7 +122,7 @@ const renderJobs = () => {
   if (state.jobs.length === 0) {
     jobsBody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="7">
+        <td colspan="8">
           <div class="empty-state">
             <span>🗂️</span>
             <p>No jobs yet. Create one above.</p>
@@ -117,6 +135,14 @@ const renderJobs = () => {
   state.jobs.forEach((job) => {
     const badgeClass = job.status.toLowerCase();
     const isRunning = String(job.status || "").toLowerCase() === "running";
+    const enricher = state.enricherStatus[job.id] || { status: "idle", processed: 0, total: 0 };
+    const enricherStatus = String(enricher.status || "idle").toLowerCase();
+    const enricherLabel = formatEnricherStatus(enricherStatus);
+    const isEnricherRunning = enricherStatus === "running";
+    const isEnricherPaused = enricherStatus === "paused";
+    const pauseStopLabel = isEnricherRunning ? "Pause" : isEnricherPaused ? "Stop" : "Stop";
+    const pauseStopDisabled = !(isEnricherRunning || isEnricherPaused);
+    const processedCount = Number(enricher.processed || 0);
     const row = document.createElement("tr");
     row.innerHTML = `
       <td><strong>${job.name}</strong></td>
@@ -125,6 +151,26 @@ const renderJobs = () => {
       <td>${job.pageIndex ?? "—"}</td>
       <td>${formatSeconds(job.totalSeconds)}</td>
       <td><span class="badge ${badgeClass}">${job.status}</span></td>
+      <td>
+        <div class="enricher-cell">
+          <div class="enricher-meta">
+            <span class="badge ${enricherStatus}">${enricherLabel}</span>
+            <span class="enricher-count">Rows appended: ${processedCount}</span>
+          </div>
+          <div class="enricher-actions">
+            <button class="btn secondary small" data-action="enrich-activate" data-id="${job.id}" ${
+              isEnricherRunning ? "disabled" : ""
+            }>
+              Active
+            </button>
+            <button class="btn ghost small" data-action="enrich-pause-stop" data-id="${job.id}" ${
+              pauseStopDisabled ? "disabled" : ""
+            }>
+              ${pauseStopLabel}
+            </button>
+          </div>
+        </div>
+      </td>
       <td class="actions">
         <button class="btn ghost" data-action="toggle" data-id="${job.id}">
           ${isRunning ? "Pause" : "Run"}
@@ -150,6 +196,28 @@ const renderJobs = () => {
 const fetchJobs = async () => {
   const res = await fetch("/api/jobs");
   state.jobs = await res.json();
+  const statusEntries = await Promise.all(
+    state.jobs.map(async (job) => {
+      try {
+        const statusRes = await fetch(`/api/enrich/status/${job.id}`);
+        if (!statusRes.ok) {
+          return [job.id, { status: "idle", processed: 0, total: 0 }];
+        }
+        const data = await statusRes.json();
+        return [
+          job.id,
+          {
+            status: data.status || "idle",
+            processed: Number(data.processed || 0),
+            total: Number(data.total || 0),
+          },
+        ];
+      } catch (error) {
+        return [job.id, { status: "idle", processed: 0, total: 0 }];
+      }
+    })
+  );
+  state.enricherStatus = Object.fromEntries(statusEntries);
   renderJobs();
 };
 
@@ -262,6 +330,48 @@ const handleAction = async (event) => {
   if (target.dataset.action === "download") {
     window.location.href = `/api/jobs/${id}/download`;
     return;
+  }
+  if (target.dataset.action === "enrich-activate") {
+    const enricher = state.enricherStatus[id] || { status: "idle" };
+    const status = String(enricher.status || "idle").toLowerCase();
+    if (status === "paused") {
+      await fetch(`/api/enrich/resume/${id}`, { method: "POST" });
+      showToast("Website enricher resumed");
+      fetchJobs();
+      return;
+    }
+    if (status === "running") {
+      return;
+    }
+    const res = await fetch("/api/enrich/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: id }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.message || "Failed to start website enricher");
+      return;
+    }
+    showToast("Website enricher started");
+    fetchJobs();
+    return;
+  }
+  if (target.dataset.action === "enrich-pause-stop") {
+    const enricher = state.enricherStatus[id] || { status: "idle" };
+    const status = String(enricher.status || "idle").toLowerCase();
+    if (status === "running") {
+      await fetch(`/api/enrich/pause/${id}`, { method: "POST" });
+      showToast("Website enricher paused");
+      fetchJobs();
+      return;
+    }
+    if (status === "paused") {
+      await fetch(`/api/enrich/stop/${id}`, { method: "POST" });
+      showToast("Website enricher stopped");
+      fetchJobs();
+      return;
+    }
   }
   if (target.dataset.action === "delete") {
     await fetch(`/api/jobs/${id}`, { method: "DELETE" });
